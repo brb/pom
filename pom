@@ -1,0 +1,71 @@
+#!/bin/sh
+
+# TODO:
+#   - support for tags and comments
+#   - flock
+
+set -ue
+
+DB="$HOME/.pom.dat"
+DURATION=$(( 25 * 60 )) # 25 minutes
+
+function usage() {
+    cat >&2 <<EOF
+Usage:
+    pom start
+    pom abort
+EOF
+    exit 1
+}
+
+function ensure_db() {
+    [ -f "$DB" ] || touch "$DB"
+}
+
+function start() {
+    ensure_db
+
+    echo "start=$(date +%s)" >> $DB
+    nohup sh -c "sleep $DURATION && $0 finish" >/dev/null 2>&1 &
+    notify-send "pom: starting"
+}
+
+function abort() {
+    ensure_db
+
+    POM=$(tail -n1 "$DB")
+    [[ -z "$POM" ]] && echo "not started" >&2 && exit 1
+
+    echo "abort=$(date +%s)" >> $DB
+    notify-send "pom: aborted"
+}
+
+function finish() {
+    ensure_db
+
+    POM=$(tail -n1 "$DB")
+    [[ -z "$POM" ]] && echo "not started" >&2 && exit 1
+
+    notify-send "pom: finished"
+    echo "end=$(date +%s)" >> $DB
+}
+
+[ $# -gt 0 ] || usage
+
+CMD=$1
+shift 1
+
+case "$CMD" in
+    start)
+        start
+        ;;
+    abort)
+        abort
+        ;;
+    finish)
+        finish
+        ;;
+    *)
+        usage
+        ;;
+esac
