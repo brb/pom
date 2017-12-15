@@ -4,7 +4,7 @@
 #   - support for tags and comments
 #   - flock
 
-set -ue
+set -u
 
 DB="$HOME/.pom.dat"
 DURATION=$((25 * 60)) # 25 minutes
@@ -23,6 +23,11 @@ function ensure_db() {
     [ -f "$DB" ] || touch "$DB"
 }
 
+function ensure_running() {
+    local POM=$(tail -n1 "$DB")
+    [[ -z "$POM" ]] || echo "$POM" | grep -q -v "start" && echo "not started" >&2 && exit 1
+}
+
 function start() {
     ensure_db
 
@@ -33,10 +38,9 @@ function start() {
 
 function abort() {
     ensure_db
+    ensure_running
 
-    local POM=$(tail -n1 "$DB")
-    [[ -z "$POM" ]] && echo "not started" >&2 && exit 1
-
+    pkill -f 'pom finish'
     echo "abort=$(date +%s)" >> $DB
     notify-send "pom: aborted"
 }
@@ -56,9 +60,7 @@ function status() {
 
 function finish() {
     ensure_db
-
-    local POM=$(tail -n1 "$DB")
-    [[ -z "$POM" ]] && echo "not started" >&2 && exit 1
+    ensure_running
 
     notify-send "pom: finished"
     echo "end=$(date +%s)" >> $DB
