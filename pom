@@ -7,13 +7,14 @@
 set -ue
 
 DB="$HOME/.pom.dat"
-DURATION=$(( 25 * 60 )) # 25 minutes
+DURATION=$((25 * 60)) # 25 minutes
 
 function usage() {
     cat >&2 <<EOF
 Usage:
     pom start
     pom abort
+    pom status
 EOF
     exit 1
 }
@@ -33,17 +34,30 @@ function start() {
 function abort() {
     ensure_db
 
-    POM=$(tail -n1 "$DB")
+    local POM=$(tail -n1 "$DB")
     [[ -z "$POM" ]] && echo "not started" >&2 && exit 1
 
     echo "abort=$(date +%s)" >> $DB
     notify-send "pom: aborted"
 }
 
+function status() {
+    ensure_db
+
+    local POM=$(tail -n1 "$DB")
+    [[ -z "$POM" ]] || echo "$POM" | grep -q -E "abort|end" && echo "NA" && exit 0
+
+    local START=$(echo "$POM" | grep -o -E "start=([0-9]*)" | sed "s/start=//")
+    local NOW=$(date +%s)
+    local DIFF=$(($NOW - $START))
+
+    echo "$((($DURATION - $DIFF) / 60)) min left"
+}
+
 function finish() {
     ensure_db
 
-    POM=$(tail -n1 "$DB")
+    local POM=$(tail -n1 "$DB")
     [[ -z "$POM" ]] && echo "not started" >&2 && exit 1
 
     notify-send "pom: finished"
@@ -61,6 +75,9 @@ case "$CMD" in
         ;;
     abort)
         abort
+        ;;
+    status)
+        status
         ;;
     finish)
         finish
